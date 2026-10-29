@@ -24,18 +24,17 @@ class Store:
         return task
 
     async def claim_task(self, task_id: int, worker: str) -> tuple[bool, str]:
-        # BUG: check and update are not atomic. Concurrent callers can both
-        # pass the status check before either writes the owner.
-        task = self.tasks.get(task_id)
-        if task is None:
-            return False, "not_found"
-        if task.status != "open":
-            return False, "already_claimed"
+        async with self.lock:  # Ensure atomicity with async with self.lock
+            task = self.tasks.get(task_id)
+            if task is None:
+                return False, "not_found"
+            if task.status != "open":
+                return False, "already_claimed"
 
-        # Simulates an async gap, such as a database/network operation.
-        await asyncio.sleep(0)
+            # Simulates an async gap, such as a database/network operation.
+            await asyncio.sleep(0)
 
-        task.owner = worker
-        task.status = "claimed"
-        self.audit.append({"event": "claimed", "task_id": task_id, "worker": worker})
-        return True, "claimed"
+            task.owner = worker
+            task.status = "claimed"
+            self.audit.append({"event": "claimed", "task_id": task_id, "worker": worker})
+            return True, "claimed"
